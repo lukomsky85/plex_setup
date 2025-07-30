@@ -39,7 +39,7 @@
 
 ```bash
 # 1. Скачайте скрипт
-curl -fsSL https://raw.githubusercontent.com/ваш-профиль/plex-ecosystem-installer/main/setup_plex_full.sh -o setup_plex_full.sh
+curl -fsSL https://raw.githubusercontent.com/lukomsky85/plex-ecosystem-installer/main/setup_plex_full.sh -o setup_plex_full.sh
 
 # 2. Сделайте исполняемым
 chmod +x setup_plex_full.sh
