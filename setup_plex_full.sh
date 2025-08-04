@@ -98,11 +98,14 @@ install_plex() {
         systemctl start plexmediaserver
     elif [[ "$OS_ID" == "rhel" || "$OS_ID" == "centos" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" ]]; then
         echo "🔧 Устанавливаем зависимости..."
-        yum install -y curl gnupg2
+        yum install -y curl gnupg
+
         echo "🔐 Импортируем GPG-ключ Plex с поддержкой SHA-1..."
-        mkdir -p /etc/pki/rpm-gpg
-        curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.key | gpg --allow-sha1 --dearmor -o /etc/pki/rpm-gpg/RPM-GPG-KEY-plex
-        rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-plex
+        curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.key -o /tmp/PlexSign.key
+        RPM_MACROS_DIR="$(mktemp -d)"
+        echo '%_gpg_check_options --allow-sha1-signature' > "${RPM_MACROS_DIR}/macros.sha1"
+        HOME="${RPM_MACROS_DIR}" rpm --import /tmp/PlexSign.key
+        rm -rf "${RPM_MACROS_DIR}" /tmp/PlexSign.key
 
         echo "📄 Добавляем репозиторий Plex..."
         cat > /etc/yum.repos.d/plex.repo << 'EOF'
@@ -111,7 +114,7 @@ name=PlexRepo
 baseurl=https://downloads.plex.tv/repo/rpm/$basearch
 enabled=1
 gpgcheck=1
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-plex
+gpgkey=https://downloads.plex.tv/plex-keys/PlexSign.key
 EOF
 
         echo "📦 Устанавливаем Plex Media Server..."
