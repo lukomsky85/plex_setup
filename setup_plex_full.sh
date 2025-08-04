@@ -48,22 +48,33 @@ install_base_packages() {
 install_docker() {
     if ! command -v docker &> /dev/null; then
         echo "🐳 Устанавливаем Docker..."
-        # Убедимся, что curl установлен
         if ! command -v curl &> /dev/null; then
             echo "⚠️ Устанавливаем curl..."
             install_base_packages
         fi
-        # Установка Docker через официальный скрипт
-        curl -fsSL https://get.docker.com | sh
+
+        # Проверка на RHEL-совместимые системы (AlmaLinux, Rocky, CentOS)
+        if [[ "$OS_ID" == "almalinux" || "$OS_ID" == "rocky" || "$OS_ID" == "centos" ]]; then
+            echo "📦 Устанавливаем Docker на $OS_NAME..."
+            yum install -y yum-utils
+            yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum install -y docker-ce docker-ce-cli containerd.io
+        elif [[ "$OS_ID" == "ubuntu" || "$OS_ID" == "debian" ]]; then
+            curl -fsSL https://get.docker.com | sh
+        else
+            echo "❌ ОС $OS_NAME не поддерживается для установки Docker"
+            exit 1
+        fi
+
         systemctl enable docker
         systemctl start docker
     else
         echo "✅ Docker уже установлен"
     fi
 
+    # Установка Docker Compose (как в оригинале)
     if ! command -v docker-compose &> /dev/null; then
         echo "🔧 Устанавливаем Docker Compose..."
-        # Получаем последнюю версию через GitHub API (без curl в grep)
         DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d'"' -f4)
         curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
         chmod +x /usr/local/bin/docker-compose
