@@ -72,21 +72,34 @@ install_docker() {
         echo "✅ Docker уже установлен"
     fi
 
-    # Установка Docker Compose V2 (как плагин Docker)
-    if ! docker compose version &> /dev/null; then
+    # Проверка Docker Compose (V2 plugin)
+    if docker compose version &> /dev/null; then
+        echo "✅ Docker Compose Plugin уже установлен"
+        # Проверяем существование симлинка
+        if [ ! -f /usr/local/bin/docker-compose ]; then
+            echo "🔗 Создаём симлинк для обратной совместимости..."
+            ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+        else
+            echo "ℹ️ Симлинк /usr/local/bin/docker-compose уже существует"
+        fi
+    else
         echo "🔧 Устанавливаем Docker Compose Plugin..."
         if [[ "$OS_ID" == "almalinux" || "$OS_ID" == "rocky" || "$OS_ID" == "centos" ]]; then
             yum install -y docker-compose-plugin
         elif [[ "$OS_ID" == "ubuntu" || "$OS_ID" == "debian" ]]; then
             apt install -y docker-compose-plugin
         fi
-    else
-        echo "✅ Docker Compose уже установлен"
-    fi
-
-    # Создаем симлинк для совместимости (если нужно)
-    if ! command -v docker-compose &> /dev/null; then
-        ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+        
+        # Проверяем успешность установки
+        if docker compose version &> /dev/null; then
+            echo "✅ Docker Compose успешно установлен"
+            if [ ! -f /usr/local/bin/docker-compose ]; then
+                ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+            fi
+        else
+            echo "❌ Не удалось установить Docker Compose Plugin"
+            exit 1
+        fi
     fi
 }
 
