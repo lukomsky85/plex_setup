@@ -53,7 +53,6 @@ install_docker() {
             install_base_packages
         fi
 
-        # Проверка на RHEL-совместимые системы (AlmaLinux, Rocky, CentOS)
         if [[ "$OS_ID" == "almalinux" || "$OS_ID" == "rocky" || "$OS_ID" == "centos" ]]; then
             echo "📦 Устанавливаем Docker на $OS_NAME..."
             yum install -y yum-utils
@@ -75,13 +74,6 @@ install_docker() {
     # Проверка Docker Compose (V2 plugin)
     if docker compose version &> /dev/null; then
         echo "✅ Docker Compose Plugin уже установлен"
-        # Проверяем существование симлинка
-        if [ ! -f /usr/local/bin/docker-compose ]; then
-            echo "🔗 Создаём симлинк для обратной совместимости..."
-            ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
-        else
-            echo "ℹ️ Симлинк /usr/local/bin/docker-compose уже существует"
-        fi
     else
         echo "🔧 Устанавливаем Docker Compose Plugin..."
         if [[ "$OS_ID" == "almalinux" || "$OS_ID" == "rocky" || "$OS_ID" == "centos" ]]; then
@@ -90,20 +82,19 @@ install_docker() {
             apt install -y docker-compose-plugin
         fi
         
-        # Проверяем успешность установки
-        if docker compose version &> /dev/null; then
-            echo "✅ Docker Compose успешно установлен"
-            if [ ! -f /usr/local/bin/docker-compose ]; then
-                ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
-            fi
-        else
+        if ! docker compose version &> /dev/null; then
             echo "❌ Не удалось установить Docker Compose Plugin"
             exit 1
         fi
     fi
+
+    # Создаем alias для обратной совместимости
+    if ! command -v docker-compose &> /dev/null && [ -f /usr/libexec/docker/cli-plugins/docker-compose ]; then
+        ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+    fi
 }
 
-# Функция: установка Plex (основной сервер)
+# Установка Plex
 install_plex() {
     echo "🚀 Устанавливаем Plex Media Server..."
     if [[ "$OS_ID" == "ubuntu" || "$OS_ID" == "debian" ]]; then
@@ -120,7 +111,6 @@ install_plex() {
         yum install -y curl wget
         
         echo "📦 Скачиваем и устанавливаем Plex вручную..."
-        # Получаем URL последней версии
         LATEST_URL=$(curl -s https://plex.tv/api/downloads/5.json | jq -r '.computer.Linux.releases[] | select(.build=="linux-x86_64" and .distro=="redhat").url')
         
         if [ -z "$LATEST_URL" ]; then
@@ -146,7 +136,7 @@ install_plex() {
     fi
 }
 
-# Функция: удаление Plex
+# Удаление Plex
 remove_plex() {
     echo "🧹 Удаляем Plex Media Server..."
     systemctl stop plexmediaserver || true
@@ -168,7 +158,7 @@ remove_plex() {
     echo "✅ Plex удалён"
 }
 
-# Функция: установка экосистемы через Docker
+# Установка экосистемы через Docker
 install_ecosystem() {
     echo "📁 Создаём директорию для конфигов: $CONFIG_DIR"
     mkdir -p "$CONFIG_DIR" /data/torrents /data/media
@@ -295,7 +285,20 @@ EOF
 
     echo "🚀 Запускаем Docker-контейнеры..."
     cd "$CONFIG_DIR"
-    docker-compose up -d
+    
+    # Универсальный вызов Docker Compose
+    if docker compose version &> /dev/null; then
+        docker compose up -d
+    elif command -v docker-compose &> /dev/null; then
+        docker-compose up -d
+    else
+        echo "❌ Ошибка: Docker Compose не установлен"
+        echo "Установите его командой:"
+        echo "sudo apt install docker-compose-plugin  # для Ubuntu/Debian"
+        echo "или"
+        echo "sudo yum install docker-compose-plugin  # для RHEL/CentOS"
+        exit 1
+    fi
 
     echo "✅ Все сервисы запущены!"
     echo "Доступ:"
@@ -309,12 +312,16 @@ EOF
     echo "  - qBittorrent: http://$(hostname -I | xargs):8080 (логин: admin, пароль: adminadmin)"
 }
 
-# Функция: удаление всей экосистемы
+# Удаление всей экосистемы
 remove_ecosystem() {
     echo "🧹 Остановка и удаление контейнеров..."
     if [ -f "$COMPOSE_FILE" ]; then
         cd "$CONFIG_DIR"
-        docker-compose down
+        if docker compose version &> /dev/null; then
+            docker compose down
+        elif command -v docker-compose &> /dev/null; then
+            docker-compose down
+        fi
     fi
 
     echo "🗑️ Удаление конфигов и данных (оставьте, если хотите сохранить настройки)"
@@ -339,7 +346,7 @@ remove_ecosystem() {
     remove_plex
 }
 
-# Функция: статус
+# Статус сервисов
 status_all() {
     echo "📊 Статус сервисов:"
     if systemctl is-active --quiet plexmediaserver; then
@@ -357,12 +364,12 @@ status_all() {
 # Главная логика
 main() {
     detect_os
-    install_base_packages  # Установка curl и других базовых пакетов
-    install_docker
+    install_base_packages
 
     case "${1:-install}" in
         install)
             echo "🚀 Установка Plex и всей экосистемы..."
+            install_docker
             install_plex
             install_ecosystem
             ;;
