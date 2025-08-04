@@ -165,7 +165,6 @@ install_ecosystem() {
 
     echo "📄 Создаём docker-compose.yml с полной экосистемой..."
     cat > "$COMPOSE_FILE" << 'EOF'
-version: '3.8'
 services:
   plex:
     image: plexinc/pms-docker:latest
