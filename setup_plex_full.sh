@@ -100,12 +100,9 @@ install_plex() {
         echo "🔧 Устанавливаем зависимости..."
         yum install -y curl gnupg
 
-        echo "🔐 Скачиваем GPG-ключ Plex..."
-        curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.key -o /tmp/PlexSign.key
-
-        echo "🔧 Импортируем ключ с разрешением SHA-1..."
-        rpm --define '%_gpg_check_options --allow-sha1-signature' --import /tmp/PlexSign.key
-        rm -f /tmp/PlexSign.key
+        echo "🔐 Скачиваем и импортируем GPG-ключ Plex (альтернативный метод)..."
+        # Альтернативный метод импорта ключа без SHA-1
+        rpm --import https://downloads.plex.tv/plex-keys/PlexSign.key
 
         echo "📄 Добавляем репозиторий Plex..."
         cat > /etc/yum.repos.d/plex.repo << 'EOF'
