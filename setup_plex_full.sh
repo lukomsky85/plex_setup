@@ -96,6 +96,7 @@ install_plex() {
         apt install -y plexmediaserver
         systemctl enable plexmediaserver
         systemctl start plexmediaserver
+
     elif [[ "$OS_ID" == "rhel" || "$OS_ID" == "centos" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" ]]; then
         echo "🔧 Устанавливаем зависимости..."
         yum install -y curl gnupg
@@ -103,11 +104,10 @@ install_plex() {
         echo "🔐 Скачиваем GPG-ключ Plex..."
         curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.key -o /tmp/PlexSign.key
 
-        echo "🔧 Временно разрешаем SHA-1 для rpm..."
-        RPM_MACROS_DIR=$(mktemp -d)
-        echo '%_gpg_check_options --allow-sha1-signature' > "${RPM_MACROS_DIR}/rpm-macros-sha1"
-        HOME="${RPM_MACROS_DIR}" rpm --import /tmp/PlexSign.key
-        rm -rf "${RPM_MACROS_DIR}" /tmp/PlexSign.key
+        echo "🔧 Импортируем ключ с разрешением SHA-1 (через --define)..."
+        # Прямая передача опции в rpm — это работает
+        rpm --define '%_gpg_check_options --allow-sha1-signature' --import /tmp/PlexSign.key
+        rm -f /tmp/PlexSign.key
 
         echo "📄 Добавляем репозиторий Plex..."
         cat > /etc/yum.repos.d/plex.repo << 'EOF'
@@ -123,6 +123,7 @@ EOF
         yum install -y plexmediaserver
         systemctl enable plexmediaserver
         systemctl start plexmediaserver
+
     else
         echo "❌ ОС $OS_NAME не поддерживается"
         exit 1
