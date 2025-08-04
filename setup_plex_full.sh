@@ -100,10 +100,12 @@ install_plex() {
         echo "🔧 Устанавливаем зависимости..."
         yum install -y curl gnupg
 
-        echo "🔐 Импортируем GPG-ключ Plex с поддержкой SHA-1..."
+        echo "🔐 Скачиваем GPG-ключ Plex..."
         curl -fsSL https://downloads.plex.tv/plex-keys/PlexSign.key -o /tmp/PlexSign.key
-        RPM_MACROS_DIR="$(mktemp -d)"
-        echo '%_gpg_check_options --allow-sha1-signature' > "${RPM_MACROS_DIR}/macros.sha1"
+
+        echo "🔧 Временно разрешаем SHA-1 для rpm..."
+        RPM_MACROS_DIR=$(mktemp -d)
+        echo '%_gpg_check_options --allow-sha1-signature' > "${RPM_MACROS_DIR}/rpm-macros-sha1"
         HOME="${RPM_MACROS_DIR}" rpm --import /tmp/PlexSign.key
         rm -rf "${RPM_MACROS_DIR}" /tmp/PlexSign.key
 
