@@ -98,24 +98,27 @@ install_plex() {
         systemctl start plexmediaserver
     elif [[ "$OS_ID" == "rhel" || "$OS_ID" == "centos" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" ]]; then
         echo "🔧 Устанавливаем зависимости..."
-        yum install -y curl gnupg
-
-        echo "🔐 Скачиваем и импортируем GPG-ключ Plex (альтернативный метод)..."
-        # Альтернативный метод импорта ключа без SHA-1
-        rpm --import https://downloads.plex.tv/plex-keys/PlexSign.key
-
-        echo "📄 Добавляем репозиторий Plex..."
-        cat > /etc/yum.repos.d/plex.repo << 'EOF'
-[plexrepo]
-name=PlexRepo
-baseurl=https://downloads.plex.tv/repo/rpm/$basearch
-enabled=1
-gpgcheck=1
-gpgkey=https://downloads.plex.tv/plex-keys/PlexSign.key
-EOF
-
-        echo "📦 Устанавливаем Plex Media Server..."
-        yum install -y plexmediaserver
+        yum install -y curl wget
+        
+        echo "📦 Скачиваем и устанавливаем Plex вручную..."
+        # Получаем URL последней версии
+        LATEST_URL=$(curl -s https://plex.tv/api/downloads/5.json | jq -r '.computer.Linux.releases[] | select(.build=="linux-x86_64" and .distro=="redhat").url')
+        
+        if [ -z "$LATEST_URL" ]; then
+            echo "❌ Не удалось получить URL для скачивания Plex"
+            exit 1
+        fi
+        
+        echo "⬇️ Скачиваем Plex: $LATEST_URL"
+        wget -O /tmp/plex.rpm "$LATEST_URL"
+        
+        echo "📦 Устанавливаем Plex (без проверки подписи)..."
+        yum localinstall -y --nogpgcheck /tmp/plex.rpm
+        
+        echo "🧹 Удаляем временный файл..."
+        rm -f /tmp/plex.rpm
+        
+        echo "🚀 Запускаем Plex..."
         systemctl enable plexmediaserver
         systemctl start plexmediaserver
     else
