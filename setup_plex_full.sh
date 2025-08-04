@@ -176,6 +176,7 @@ services:
       - PLEX_UID=1000
       - PLEX_GID=1000
       - VERSION=public
+      - TZ=Europe/Moscow
     volumes:
       - /var/lib/plexmediaserver:/config
       - /data/media:/data:ro
