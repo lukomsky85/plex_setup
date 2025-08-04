@@ -31,13 +31,13 @@ detect_os() {
 
 # Установка базовых зависимостей
 install_base_packages() {
-    echo "🔧 Установка базовых пакетов (curl, gnupg, wget, ca-certificates)..."
+    echo "🔧 Установка базовых пакетов (curl, gnupg, wget, ca-certificates, jq)..."
     if command -v apt &> /dev/null; then
-        apt update && apt install -y curl gnupg wget ca-certificates
+        apt update && apt install -y curl gnupg wget ca-certificates jq
     elif command -v dnf &> /dev/null; then
-        dnf install -y curl gnupg wget ca-certificates
+        dnf install -y curl gnupg wget ca-certificates jq
     elif command -v yum &> /dev/null; then
-        yum install -y curl gnupg wget ca-certificates
+        yum install -y curl gnupg wget ca-certificates jq
     else
         echo "❌ Не удалось найти пакетный менеджер (apt/dnf/yum)"
         exit 1
