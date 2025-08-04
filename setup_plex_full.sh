@@ -180,7 +180,6 @@ services:
     volumes:
       - /var/lib/plexmediaserver:/config
       - /data/media:/data:ro
-      - /etc/localtime:/etc/localtime:ro
 
   tautulli:
     image: tautulli/tautulli:latest
@@ -188,10 +187,11 @@ services:
     ports:
       - "8181:8181"
     restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
     volumes:
       - /opt/tautulli:/config
       - /var/lib/plexmediaserver/Library/Application\ Support/Plex\ Media\ Server/Logs:/logs:ro
-      - /etc/localtime:/etc/localtime:ro
 
   overseerr:
     image: sctx/overseerr:latest
@@ -202,9 +202,9 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      - TZ=Europe/Moscow
     volumes:
       - /opt/overseerr:/app/config
-      - /etc/localtime:/etc/localtime:ro
 
   jellyseerr:
     image: fallenbagel/jellyseerr:latest
@@ -215,9 +215,9 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      - TZ=Europe/Moscow
     volumes:
       - /opt/jellyseerr:/app/config
-      - /etc/localtime:/etc/localtime:ro
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -225,11 +225,14 @@ services:
     ports:
       - "8989:8989"
     restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
     volumes:
       - /opt/sonarr:/config
       - /data/media:/data
       - /data/torrents:/downloads
-      - /etc/localtime:/etc/localtime:ro
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
@@ -237,11 +240,14 @@ services:
     ports:
       - "7878:7878"
     restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
     volumes:
       - /opt/radarr:/config
       - /data/media:/data
       - /data/torrents:/downloads
-      - /etc/localtime:/etc/localtime:ro
 
   lidarr:
     image: lscr.io/linuxserver/lidarr:latest
@@ -249,11 +255,14 @@ services:
     ports:
       - "8686:8686"
     restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
     volumes:
       - /opt/lidarr:/config
       - /data/media:/data
       - /data/torrents:/downloads
-      - /etc/localtime:/etc/localtime:ro
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -266,18 +275,19 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=Etc/UTC
+      - TZ=Europe/Moscow
       - WEBUI_PORT=8080
     volumes:
       - /opt/qbittorrent:/config
       - /data/torrents:/downloads
       - /data/media:/data
-      - /etc/localtime:/etc/localtime:ro
 
   plex-meta-manager:
     image: meisnate12/plex-meta-manager:latest
     container_name: plex-meta-manager
     restart: unless-stopped
+    environment:
+      - TZ=Europe/Moscow
     volumes:
       - /opt/pmm/config:/config
       - /opt/pmm/logs:/logs
