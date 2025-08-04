@@ -1,9 +1,7 @@
 #!/bin/bash
-
 # Универсальный скрипт: Установка Plex + экосистема (Tautulli, Overseerr, Sonarr и др.)
-# Поддержка: Ubuntu, Debian, RHEL, Rocky, AlmaLinux, CentOS, Fedora
-# Запуск: sudo ./setup_plex_full.sh [install|remove]
-
+# Поддержка: Ubuntu, Debian, RHEL, Rocky, AlmaLinux, CentOS
+# Запуск: sudo ./setup_plex_full.sh [install|remove|status]
 set -e  # Прерывать при ошибках
 
 # Проверка прав root
@@ -27,6 +25,7 @@ detect_os() {
         echo "❌ Не удалось определить ОС"
         exit 1
     fi
+    echo "🔍 ОС: $OS_NAME ($OS_ID $OS_VERSION)"
 }
 
 # Установка базовых зависимостей
@@ -64,14 +63,13 @@ install_docker() {
             echo "❌ ОС $OS_NAME не поддерживается для установки Docker"
             exit 1
         fi
-
         systemctl enable docker
         systemctl start docker
     else
         echo "✅ Docker уже установлен"
     fi
 
-    # Проверка Docker Compose (V2 plugin)
+    # Установка Docker Compose Plugin
     if docker compose version &> /dev/null; then
         echo "✅ Docker Compose Plugin уже установлен"
     else
@@ -80,10 +78,8 @@ install_docker() {
             yum install -y docker-compose-plugin
         elif [[ "$OS_ID" == "ubuntu" || "$OS_ID" == "debian" ]]; then
             apt install -y docker-compose-plugin
-        fi
-        
-        if ! docker compose version &> /dev/null; then
-            echo "❌ Не удалось установить Docker Compose Plugin"
+        else
+            echo "❌ Не удалось установить Docker Compose Plugin для $OS_NAME"
             exit 1
         fi
     fi
@@ -91,6 +87,7 @@ install_docker() {
     # Создаем alias для обратной совместимости
     if ! command -v docker-compose &> /dev/null && [ -f /usr/libexec/docker/cli-plugins/docker-compose ]; then
         ln -s /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+        echo "🔗 Создан алиас docker-compose"
     fi
 }
 
@@ -108,26 +105,19 @@ install_plex() {
         systemctl start plexmediaserver
     elif [[ "$OS_ID" == "rhel" || "$OS_ID" == "centos" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" ]]; then
         echo "🔧 Устанавливаем зависимости..."
-        yum install -y curl wget
-        
-        echo "📦 Скачиваем и устанавливаем Plex вручную..."
+        yum install -y curl wget jq
+
+        echo "📦 Получаем последнюю версию Plex..."
         LATEST_URL=$(curl -s https://plex.tv/api/downloads/5.json | jq -r '.computer.Linux.releases[] | select(.build=="linux-x86_64" and .distro=="redhat").url')
-        
         if [ -z "$LATEST_URL" ]; then
             echo "❌ Не удалось получить URL для скачивания Plex"
             exit 1
         fi
-        
-        echo "⬇️ Скачиваем Plex: $LATEST_URL"
+        echo "⬇️ Скачиваем: $LATEST_URL"
         wget -O /tmp/plex.rpm "$LATEST_URL"
-        
-        echo "📦 Устанавливаем Plex (без проверки подписи)..."
+        echo "📦 Устанавливаем (без проверки подписи)..."
         yum localinstall -y --nogpgcheck /tmp/plex.rpm
-        
-        echo "🧹 Удаляем временный файл..."
         rm -f /tmp/plex.rpm
-        
-        echo "🚀 Запускаем Plex..."
         systemctl enable plexmediaserver
         systemctl start plexmediaserver
     else
@@ -141,7 +131,6 @@ remove_plex() {
     echo "🧹 Удаляем Plex Media Server..."
     systemctl stop plexmediaserver || true
     systemctl disable plexmediaserver || true
-
     if command -v dpkg &> /dev/null && dpkg -l | grep -q plexmediaserver; then
         apt purge -y plexmediaserver
     elif command -v rpm &> /dev/null && rpm -q plexmediaserver > /dev/null; then
@@ -151,11 +140,62 @@ remove_plex() {
             yum remove -y plexmediaserver
         fi
     fi
-
     rm -f /etc/apt/sources.list.d/plex.list
     rm -f /etc/yum.repos.d/plex.repo
     rm -f /usr/share/keyrings/plex-archive-keyring.gpg
     echo "✅ Plex удалён"
+}
+
+# Настройка SELinux (для RHEL-совместимых систем)
+setup_selinux() {
+    if [[ "$OS_ID" == "rhel" || "$OS_ID" == "centos" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" ]]; then
+        echo "🔒 Настраиваем SELinux для Docker..."
+        if ! command -v semanage &> /dev/null; then
+            yum install -y policycoreutils-python-utils
+        fi
+
+        for dir in /opt/tautulli /opt/overseerr /opt/jellyseerr /opt/sonarr /opt/radarr /opt/lidarr /opt/qbittorrent /opt/pmm /opt/plex-ecosystem /data/torrents /data/media; do
+            mkdir -p "$dir"
+            semanage fcontext -a -t container_file_t "$dir(/.*)?" 2>/dev/null || true
+        done
+
+        restorecon -R /opt || true
+        restorecon -R /data || true
+    fi
+}
+
+# Открытие портов в firewall
+open_firewall_ports() {
+    if [[ "$OS_ID" == "rhel" || "$OS_ID" == "centos" || "$OS_ID" == "rocky" || "$OS_ID" == "almalinux" ]]; then
+        if systemctl is-active --quiet firewalld; then
+            echo "🔥 Открываем порты в firewalld..."
+            firewall-cmd --permanent --add-port=32400/tcp
+            firewall-cmd --permanent --add-port=8181/tcp
+            firewall-cmd --permanent --add-port=5055/tcp
+            firewall-cmd --permanent --add-port=5056/tcp
+            firewall-cmd --permanent --add-port=8989/tcp
+            firewall-cmd --permanent --add-port=7878/tcp
+            firewall-cmd --permanent --add-port=8686/tcp
+            firewall-cmd --permanent --add-port=8080/tcp
+            firewall-cmd --permanent --add-port=6881/tcp
+            firewall-cmd --permanent --add-port=6881/udp
+            firewall-cmd --reload
+        fi
+    elif [[ "$OS_ID" == "ubuntu" || "$OS_ID" == "debian" ]]; then
+        if systemctl is-active --quiet ufw; then
+            echo "🔥 Открываем порты в ufw..."
+            ufw allow 32400/tcp
+            ufw allow 8181/tcp
+            ufw allow 5055/tcp
+            ufw allow 5056/tcp
+            ufw allow 8989/tcp
+            ufw allow 7878/tcp
+            ufw allow 8686/tcp
+            ufw allow 8080/tcp
+            ufw allow 6881/tcp
+            ufw allow 6881/udp
+        fi
+    fi
 }
 
 # Установка экосистемы через Docker
@@ -163,7 +203,11 @@ install_ecosystem() {
     echo "📁 Создаём директорию для конфигов: $CONFIG_DIR"
     mkdir -p "$CONFIG_DIR" /data/torrents /data/media
 
-    echo "📄 Создаём docker-compose.yml с полной экосистемой..."
+    # SELinux и Firewall
+    setup_selinux
+    open_firewall_ports
+
+    echo "📄 Создаём docker-compose.yml (без version)..."
     cat > "$COMPOSE_FILE" << 'EOF'
 services:
   plex:
@@ -295,21 +339,14 @@ EOF
 
     echo "🚀 Запускаем Docker-контейнеры..."
     cd "$CONFIG_DIR"
-    
-    # Универсальный вызов Docker Compose
     if docker compose version &> /dev/null; then
         docker compose up -d
     elif command -v docker-compose &> /dev/null; then
         docker-compose up -d
     else
         echo "❌ Ошибка: Docker Compose не установлен"
-        echo "Установите его командой:"
-        echo "sudo apt install docker-compose-plugin  # для Ubuntu/Debian"
-        echo "или"
-        echo "sudo yum install docker-compose-plugin  # для RHEL/CentOS"
         exit 1
     fi
-
     echo "✅ Все сервисы запущены!"
     echo "Доступ:"
     echo "  - Plex: http://$(hostname -I | xargs):32400/web"
@@ -333,14 +370,12 @@ remove_ecosystem() {
             docker-compose down
         fi
     fi
-
     echo "🗑️ Удаление конфигов и данных (оставьте, если хотите сохранить настройки)"
     read -p "Удалить /opt/plex-ecosystem, /opt/tautulli и др.? (y/N): " CONFIRM
     if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
         rm -rf /opt/plex-ecosystem /opt/tautulli /opt/overseerr /opt/jellyseerr /opt/sonarr /opt/radarr /opt/lidarr /opt/qbittorrent /opt/pmm
         echo "📁 Конфигурации удалены."
     fi
-
     echo "🔄 Удаление Docker (опционально)"
     read -p "Удалить Docker? (y/N): " REMOVE_DOCKER
     if [[ "$REMOVE_DOCKER" =~ ^[Yy]$ ]]; then
@@ -352,7 +387,6 @@ remove_ecosystem() {
         fi
         rm -rf /var/lib/docker
     fi
-
     remove_plex
 }
 
@@ -375,7 +409,6 @@ status_all() {
 main() {
     detect_os
     install_base_packages
-
     case "${1:-install}" in
         install)
             echo "🚀 Установка Plex и всей экосистемы..."
